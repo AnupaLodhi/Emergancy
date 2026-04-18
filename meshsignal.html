@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MeshSignal — Offline Emergency Alerts</title>
+<style>
+  :root {
+    --red: #E24B4A; --red-light: #FCEBEB; --red-dark: #A32D2D;
+    --blue: #378ADD; --blue-light: #E6F1FB; --blue-dark: #185FA5;
+    --green: #639922; --green-light: #EAF3DE; --green-dark: #3B6D11;
+    --amber: #BA7517; --amber-light: #FAEEDA; --amber-dark: #854F0B;
+    --gray: #888780; --gray-light: #F1EFE8; --gray-dark: #444441;
+    --bg: #ffffff; --bg2: #f7f7f5; --bg3: #f0eeea;
+    --text: #1a1a18; --text2: #5f5e5a; --text3: #888780;
+    --border: rgba(0,0,0,0.1); --border2: rgba(0,0,0,0.18);
+    --radius: 10px; --radius-lg: 14px;
+    --shadow: 0 1px 4px rgba(0,0,0,0.08), 0 0 0 0.5px rgba(0,0,0,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a; --bg2: #242422; --bg3: #2c2c2a;
+      --text: #f0eeea; --text2: #b4b2a9; --text3: #888780;
+      --border: rgba(255,255,255,0.1); --border2: rgba(255,255,255,0.18);
+      --red-light: #2a1010; --red-dark: #f09595;
+      --blue-light: #0a1a2a; --blue-dark: #85b7eb;
+      --green-light: #0d1f04; --green-dark: #97c459;
+      --amber-light: #1f1000; --amber-dark: #ef9f27;
+      --gray-light: #2c2c2a; --shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg3); color: var(--text); line-height: 1.6; min-height: 100vh; }
+
+  /* NAV */
+  nav { position: sticky; top: 0; z-index: 100; background: var(--bg); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 2rem; height: 60px; backdrop-filter: blur(10px); }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; color: var(--text); text-decoration: none; }
+  .logo-icon { width: 30px; height: 30px; background: var(--text); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+  .logo-icon svg { width: 18px; height: 18px; }
+  .nav-links { display: flex; align-items: center; gap: 6px; }
+  .nav-links a { text-decoration: none; color: var(--text2); font-size: 14px; padding: 6px 12px; border-radius: 6px; transition: all 0.15s; }
+  .nav-links a:hover { background: var(--bg2); color: var(--text); }
+  .nav-cta { background: var(--text) !important; color: var(--bg) !important; font-weight: 500; }
+  .nav-cta:hover { opacity: 0.85; background: var(--text) !important; }
+  .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 8px; }
+  .hamburger span { display: block; width: 20px; height: 1.5px; background: var(--text); border-radius: 2px; transition: all 0.2s; }
+  @media(max-width:640px) { .hamburger { display: flex; } .nav-links { display: none; position: absolute; top: 60px; left: 0; right: 0; background: var(--bg); border-bottom: 0.5px solid var(--border); flex-direction: column; padding: 1rem; gap: 4px; } .nav-links.open { display: flex; } }
+
+  /* HERO */
+  .hero { background: var(--bg); border-bottom: 0.5px solid var(--border); padding: 6rem 2rem 5rem; text-align: center; }
+  .hero-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--red-light); color: var(--red-dark); font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 20px; margin-bottom: 1.5rem; letter-spacing: 0.03em; }
+  .pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); animation: pulse 1.5s ease infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.85)} }
+  .hero h1 { font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; max-width: 720px; margin: 0 auto 1.25rem; }
+  .hero h1 span { color: var(--text3); }
+  .hero p { font-size: 1.1rem; color: var(--text2); max-width: 540px; margin: 0 auto 2.5rem; line-height: 1.7; }
+  .hero-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 3rem; }
+  .btn-primary { background: var(--text); color: var(--bg); border: none; padding: 13px 28px; border-radius: var(--radius); font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+  .btn-primary:hover { opacity: 0.82; }
+  .btn-outline { background: transparent; color: var(--text); border: 0.5px solid var(--border2); padding: 13px 28px; border-radius: var(--radius); font-size: 15px; font-weight: 500; cursor: pointer; transition: background 0.15s; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+  .btn-outline:hover { background: var(--bg2); }
+  .hero-mesh { max-width: 600px; margin: 0 auto; }
+
+  /* MESH SVG ANIMATION */
+  .mesh-svg { width: 100%; height: 200px; }
+  .mesh-node { fill: var(--bg2); stroke: var(--border2); stroke-width: 1; }
+  .mesh-node.active { fill: var(--red-light); stroke: var(--red); }
+  .mesh-node.relay { fill: var(--blue-light); stroke: var(--blue); }
+  .mesh-edge { stroke: var(--border); stroke-width: 1; }
+  .mesh-edge.active { stroke: var(--red); stroke-width: 1.5; }
+  .mesh-packet { fill: var(--red); r: 4; }
+
+  /* STATS */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); background: var(--bg); border-bottom: 0.5px solid var(--border); }
+  .stat { padding: 2rem 1.5rem; text-align: center; border-right: 0.5px solid var(--border); }
+  .stat:last-child { border-right: none; }
+  .stat-val { font-size: 2rem; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.02em; }
+  .stat-label { font-size: 13px; color: var(--text2); }
+
+  /* SECTIONS */
+  .section { padding: 5rem 2rem; max-width: 1100px; margin: 0 auto; }
+  .section-header { text-align: center; margin-bottom: 3rem; }
+  .section-tag { display: inline-block; font-size: 12px; font-weight: 600; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.75rem; }
+  .section h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.75rem; }
+  .section p.lead { font-size: 1.05rem; color: var(--text2); max-width: 540px; margin: 0 auto; line-height: 1.7; }
+
+  /* FEATURE CARDS */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap: 14px; }
+  .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem; transition: box-shadow 0.15s; }
+  .card:hover { box-shadow: var(--shadow); }
+  .card-icon { width: 40px; height: 40px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; font-size: 18px; }
+  .card h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .card p { font-size: 13px; color: var(--text2); line-height: 1.65; }
+
+  /* HOW IT WORKS */
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 0; position: relative; }
+  .step { padding: 2rem 1.5rem; text-align: center; position: relative; }
+  .step-num { width: 44px; height: 44px; border-radius: 50%; background: var(--bg3); border: 0.5px solid var(--border); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; margin: 0 auto 1rem; }
+  .step h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .step p { font-size: 13px; color: var(--text2); line-height: 1.65; }
+  .step-arrow { display: none; }
+
+  /* DEMO SECTION */
+  .demo-wrap { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow); }
+  .demo-tabs { display: flex; border-bottom: 0.5px solid var(--border); }
+  .demo-tab { padding: 12px 20px; font-size: 14px; font-weight: 500; cursor: pointer; color: var(--text2); border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .demo-tab.active { color: var(--text); border-bottom-color: var(--text); }
+  .demo-tab:hover:not(.active) { color: var(--text); background: var(--bg2); }
+  .demo-panel { display: none; }
+  .demo-panel.active { display: block; }
+
+  /* SEND PANEL */
+  .send-panel { padding: 1.5rem; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  @media(max-width:500px) { .field-row { grid-template-columns: 1fr; } }
+  label { display: block; font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 5px; letter-spacing: 0.03em; }
+  input, select, textarea { width: 100%; padding: 9px 12px; font-size: 14px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg); color: var(--text); font-family: inherit; transition: border-color 0.15s, box-shadow 0.15s; outline: none; }
+  input:focus, select:focus, textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(55,138,221,0.15); }
+  textarea { resize: vertical; min-height: 80px; }
+  .location-row { display: flex; gap: 8px; align-items: flex-end; }
+  .location-row input { flex: 1; }
+  .loc-btn { padding: 9px 14px; background: var(--bg2); border: 0.5px solid var(--border2); border-radius: var(--radius); cursor: pointer; font-size: 13px; white-space: nowrap; transition: background 0.15s; color: var(--text); }
+  .loc-btn:hover { background: var(--bg3); }
+  .broadcast-btn { width: 100%; margin-top: 12px; padding: 13px; background: var(--red); color: white; border: none; border-radius: var(--radius); font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .broadcast-btn:hover { opacity: 0.88; }
+  .broadcast-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .send-status { margin-top: 10px; font-size: 13px; text-align: center; color: var(--text2); min-height: 20px; }
+  .send-status.success { color: var(--green-dark); font-weight: 500; }
+
+  /* FEED PANEL */
+  .feed-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 0.5px solid var(--border); background: var(--bg2); }
+  .feed-live { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text2); }
+  .feed-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s ease infinite; }
+  .feed-count { font-size: 13px; color: var(--text2); }
+  .feed-list { max-height: 420px; overflow-y: auto; }
+  .feed-item { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-bottom: 0.5px solid var(--border); transition: background 0.1s; cursor: pointer; }
+  .feed-item:last-child { border-bottom: none; }
+  .feed-item:hover { background: var(--bg2); }
+  .feed-item.new { animation: slideIn 0.35s ease; }
+  @keyframes slideIn { from { opacity:0; transform: translateY(-8px); } to { opacity:1; transform: translateY(0); } }
+  .alert-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; letter-spacing: 0.03em; }
+  .badge-sos { background: var(--red-light); color: var(--red-dark); }
+  .badge-flood { background: var(--blue-light); color: var(--blue-dark); }
+  .badge-fire { background: var(--amber-light); color: var(--amber-dark); }
+  .badge-medical { background: var(--green-light); color: var(--green-dark); }
+  .feed-content { flex: 1; min-width: 0; }
+  .feed-title { font-size: 14px; font-weight: 600; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .feed-meta { font-size: 12px; color: var(--text3); display: flex; gap: 10px; flex-wrap: wrap; }
+  .feed-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+  .hop-tag { font-size: 11px; background: var(--bg3); color: var(--text2); padding: 2px 8px; border-radius: 10px; border: 0.5px solid var(--border); white-space: nowrap; }
+  .feed-time { font-size: 11px; color: var(--text3); }
+
+  /* MAP PANEL */
+  .map-panel { padding: 0; }
+  #map-canvas { width: 100%; height: 380px; background: var(--bg2); position: relative; overflow: hidden; }
+  .map-node { position: absolute; transform: translate(-50%,-50%); cursor: pointer; }
+  .map-node-circle { width: 18px; height: 18px; border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center; font-size: 8px; color: white; font-weight: 700; }
+  .map-popup { position: absolute; background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 10px 14px; font-size: 13px; box-shadow: var(--shadow); pointer-events: none; z-index: 10; min-width: 180px; white-space: nowrap; }
+  .map-popup .pop-title { font-weight: 600; margin-bottom: 3px; }
+  .map-popup .pop-meta { font-size: 12px; color: var(--text2); }
+  .map-legend { padding: 12px 16px; border-top: 0.5px solid var(--border); display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text2); background: var(--bg); }
+  .map-legend-item { display: flex; align-items: center; gap: 6px; }
+  .map-legend-dot { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+
+  /* SIGNAL RANGE ANIMATION */
+  .range-ring { position: absolute; border-radius: 50%; border: 1.5px solid; animation: expand 2.5s ease-out infinite; pointer-events: none; transform: translate(-50%,-50%); }
+  @keyframes expand { 0% { width:18px; height:18px; opacity:0.7; } 100% { width:80px; height:80px; opacity:0; } }
+
+  /* TRACTION */
+  .traction-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 14px; }
+  .traction-card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem; }
+  .traction-val { font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
+  .traction-label { font-size: 13px; color: var(--text2); margin-bottom: 12px; }
+  .prog-bar { height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+  .prog-fill { height: 100%; background: var(--text); border-radius: 2px; width: 0; transition: width 1s ease; }
+
+  /* TECH SECTION */
+  .tech-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+  .tech-card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem; }
+  .tech-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .tech-tag { font-size: 11px; background: var(--bg2); color: var(--text2); padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+  .tech-card p { font-size: 13px; color: var(--text2); line-height: 1.65; }
+  .code-block { background: var(--bg3); border-radius: var(--radius); padding: 12px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--text2); margin-top: 10px; overflow-x: auto; line-height: 1.6; border: 0.5px solid var(--border); }
+  .code-block .kw { color: var(--blue-dark); }
+  .code-block .str { color: var(--green-dark); }
+  .code-block .cm { color: var(--text3); }
+
+  /* FOOTER */
+  footer { background: var(--bg); border-top: 0.5px solid var(--border); padding: 3rem 2rem; }
+  .footer-inner { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: start; }
+  @media(max-width:600px){ .footer-inner { grid-template-columns: 1fr; } }
+  .footer-logo { font-weight: 700; font-size: 16px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .footer-desc { font-size: 13px; color: var(--text2); max-width: 320px; line-height: 1.65; }
+  .footer-links { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+  .footer-links a { color: var(--text2); text-decoration: none; transition: color 0.15s; }
+  .footer-links a:hover { color: var(--text); }
+  .footer-copy { margin-top: 2rem; padding-top: 1.5rem; border-top: 0.5px solid var(--border); text-align: center; font-size: 12px; color: var(--text3); }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--text); color: var(--bg); padding: 12px 18px; border-radius: var(--radius); font-size: 14px; font-weight: 500; z-index: 9999; transform: translateY(80px); opacity: 0; transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1); max-width: 320px; }
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  /* SCROLL DIVIDERS */
+  .divider { height: 0.5px; background: var(--border); }
+
+  /* MODAL */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 1rem; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal { background: var(--bg); border-radius: var(--radius-lg); padding: 2rem; max-width: 480px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); transform: scale(0.95); transition: transform 0.2s; }
+  .modal-overlay.open .modal { transform: scale(1); }
+  .modal h2 { font-size: 1.3rem; font-weight: 700; margin-bottom: 1rem; }
+  .modal-close { float: right; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text2); line-height: 1; margin-top: -4px; }
+  .modal p { font-size: 14px; color: var(--text2); line-height: 1.7; margin-bottom: 0.75rem; }
+  .modal strong { color: var(--text); }
+
+  .section-bg { background: var(--bg); }
+  .section-alt { background: var(--bg3); }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="9" cy="9" r="3" fill="white"/>
+        <circle cx="2.5" cy="3" r="1.8" fill="white" opacity="0.65"/>
+        <circle cx="15.5" cy="3" r="1.8" fill="white" opacity="0.65"/>
+        <circle cx="2.5" cy="15" r="1.8" fill="white" opacity="0.65"/>
+        <circle cx="15.5" cy="15" r="1.8" fill="white" opacity="0.65"/>
+        <line x1="4.2" y1="4.2" x2="6.8" y2="6.8" stroke="white" stroke-width="0.9" opacity="0.5"/>
+        <line x1="13.8" y1="4.2" x2="11.2" y2="6.8" stroke="white" stroke-width="0.9" opacity="0.5"/>
+        <line x1="4.2" y1="13.8" x2="6.8" y2="11.2" stroke="white" stroke-width="0.9" opacity="0.5"/>
+        <line x1="13.8" y1="13.8" x2="11.2" y2="11.2" stroke="white" stroke-width="0.9" opacity="0.5"/>
+      </svg>
+    </div>
+    MeshSignal
+  </a>
+  <div class="nav-links" id="navLinks">
+    <a href="#how">How it works</a>
+    <a href="#demo">Live demo</a>
+    <a href="#traction">Traction</a>
+    <a href="#tech">Technology</a>
+    <a href="#demo" class="nav-cta">Try demo</a>
+  </div>
+  <div class="hamburger" id="hamburger" onclick="toggleNav()">
+    <span></span><span></span><span></span>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="section-bg">
+<div class="hero">
+  <div class="hero-badge"><div class="pulse-dot"></div> No internet required</div>
+  <h1>Emergency alerts that work <span>when nothing else does</span></h1>
+  <p>MeshSignal relays SOS messages across a mesh of nearby devices using Bluetooth and Wi-Fi Direct — reaching help even when cell towers are down.</p>
+  <div class="hero-btns">
+    <a href="#demo" class="btn-primary">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><path d="M6.5 5.5l4 2.5-4 2.5V5.5z" fill="currentColor"/></svg>
+      Try the live demo
+    </a>
+    <a href="#how" class="btn-outline">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 7v5M8 5v1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      How it works
+    </a>
+  </div>
+
+  <!-- ANIMATED MESH -->
+  <div class="hero-mesh">
+    <svg class="mesh-svg" viewBox="0 0 600 190" xmlns="http://www.w3.org/2000/svg" id="meshSvg">
+      <!-- Edges -->
+      <g id="edges">
+        <line x1="80" y1="95" x2="200" y2="55" class="mesh-edge" id="e1"/>
+        <line x1="80" y1="95" x2="200" y2="135" class="mesh-edge" id="e2"/>
+        <line x1="200" y1="55" x2="300" y2="95" class="mesh-edge" id="e3"/>
+        <line x1="200" y1="135" x2="300" y2="95" class="mesh-edge" id="e4"/>
+        <line x1="300" y1="95" x2="400" y2="55" class="mesh-edge" id="e5"/>
+        <line x1="300" y1="95" x2="400" y2="135" class="mesh-edge" id="e6"/>
+        <line x1="400" y1="55" x2="520" y2="95" class="mesh-edge" id="e7"/>
+        <line x1="400" y1="135" x2="520" y2="95" class="mesh-edge" id="e8"/>
+        <line x1="200" y1="55" x2="200" y2="135" class="mesh-edge"/>
+        <line x1="400" y1="55" x2="400" y2="135" class="mesh-edge"/>
+      </g>
+      <!-- Nodes -->
+      <g id="nodes">
+        <circle cx="80" cy="95" r="12" class="mesh-node active" id="n0"/>
+        <circle cx="200" cy="55" r="10" class="mesh-node" id="n1"/>
+        <circle cx="200" cy="135" r="10" class="mesh-node" id="n2"/>
+        <circle cx="300" cy="95" r="10" class="mesh-node" id="n3"/>
+        <circle cx="400" cy="55" r="10" class="mesh-node" id="n4"/>
+        <circle cx="400" cy="135" r="10" class="mesh-node" id="n5"/>
+        <circle cx="520" cy="95" r="12" class="mesh-node" id="n6"/>
+      </g>
+      <!-- Labels -->
+      <text x="80" y="99" text-anchor="middle" font-size="9" fill="#A32D2D" font-weight="700">SOS</text>
+      <text x="520" y="99" text-anchor="middle" font-size="9" fill="#5f5e5a">HELP</text>
+      <!-- Packet (animated) -->
+      <circle cx="80" cy="95" r="5" fill="#E24B4A" id="packet" opacity="0"/>
+    </svg>
+  </div>
+</div>
+</div>
+
+<!-- STATS -->
+<div class="stats" id="statsSection">
+  <div class="stat">
+    <div class="stat-val" id="sv1">0</div>
+    <div class="stat-label">Alerts relayed in pilots</div>
+  </div>
+  <div class="stat">
+    <div class="stat-val" id="sv2">0</div>
+    <div class="stat-label">Enrolled devices</div>
+  </div>
+  <div class="stat">
+    <div class="stat-val" id="sv3">0%</div>
+    <div class="stat-label">Delivery success rate</div>
+  </div>
+  <div class="stat">
+    <div class="stat-val" id="sv4">0s</div>
+    <div class="stat-label">Avg. delivery time</div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- HOW IT WORKS -->
+<div class="section-alt" id="how">
+<div class="section">
+  <div class="section-header">
+    <div class="section-tag">How it works</div>
+    <h2>Three steps. Zero cell signal.</h2>
+    <p class="lead">MeshSignal uses the radios already in every smartphone to build an instant emergency network.</p>
+  </div>
+  <div class="steps" style="background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;">
+    <div class="step" style="border-right:0.5px solid var(--border)">
+      <div class="step-num" style="background:var(--red-light);border-color:var(--red);color:var(--red-dark);">1</div>
+      <h3>Send an alert</h3>
+      <p>Choose type, add your GPS location and message. No data connection needed — alert is signed locally with your private key.</p>
+    </div>
+    <div class="step" style="border-right:0.5px solid var(--border)">
+      <div class="step-num" style="background:var(--blue-light);border-color:var(--blue);color:var(--blue-dark);">2</div>
+      <h3>Mesh relay</h3>
+      <p>Nearby devices running MeshSignal auto-receive and re-broadcast via Bluetooth LE and Wi-Fi Direct, forming a self-healing network.</p>
+    </div>
+    <div class="step">
+      <div class="step-num" style="background:var(--green-light);border-color:var(--green);color:var(--green-dark);">3</div>
+      <h3>Help arrives</h3>
+      <p>Alert hops until it reaches a gateway node or a device with internet access, which forwards it to emergency services.</p>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="divider"></div>
+
+<!-- FEATURES -->
+<div class="section-bg">
+<div class="section">
+  <div class="section-header">
+    <div class="section-tag">Features</div>
+    <h2>Built for real emergencies</h2>
+    <p class="lead">Every design decision was made for the moments when infrastructure fails.</p>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-icon" style="background:var(--red-light)">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 2L12.5 7.5H18L13.5 11L15.5 17L10 13.5L4.5 17L6.5 11L2 7.5H7.5L10 2Z" fill="#A32D2D"/></svg>
+      </div>
+      <h3>Truly offline-first</h3>
+      <p>No internet, no SMS, no cell signal required. Peer-to-peer only, using Bluetooth Low Energy (BLE) and Wi-Fi Direct radios in every modern phone.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon" style="background:var(--blue-light)">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="6" width="14" height="10" rx="2" stroke="#185FA5" stroke-width="1.5" fill="none"/><path d="M7 6V5a3 3 0 0 1 6 0v1" stroke="#185FA5" stroke-width="1.5" fill="none"/><circle cx="10" cy="11" r="1.5" fill="#185FA5"/></svg>
+      </div>
+      <h3>End-to-end encrypted</h3>
+      <p>Messages are encrypted with Curve25519. Relay nodes forward ciphertext only — they cannot read the content. Only the intended recipient decrypts.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon" style="background:var(--green-light)">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="#3B6D11" stroke-width="1.5" fill="none"/><path d="M10 6.5v4l2.5 1.5" stroke="#3B6D11" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <h3>Battery aware</h3>
+      <p>Under 3% battery/hour in relay mode. Adaptive duty cycling adjusts BLE scan frequency based on detected mesh density and device battery level.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon" style="background:var(--amber-light)">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 3C6.7 3 4 5.7 4 9c0 5 6 11 6 11s6-6 6-11c0-3.3-2.7-6-6-6z" stroke="#854F0B" stroke-width="1.5" fill="none"/><circle cx="10" cy="9" r="2" fill="#854F0B"/></svg>
+      </div>
+      <h3>GPS + manual pin</h3>
+      <p>Attaches GPS coordinates automatically. Falls back to manual location pin on an offline map tile when GPS is blocked or unavailable indoors.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon" style="background:var(--red-light)">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 10h14M10 3l7 7-7 7" stroke="#A32D2D" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <h3>Epidemic routing</h3>
+      <p>Uses epidemic broadcast with TTL and seen-IDs to prevent loops. Each packet has a unique ID — devices never relay the same message twice.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon" style="background:var(--blue-light)">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="13" rx="2" stroke="#185FA5" stroke-width="1.5" fill="none"/><path d="M6 4V3M14 4V3" stroke="#185FA5" stroke-width="1.5" stroke-linecap="round"/><path d="M2 8h16" stroke="#185FA5" stroke-width="1.5"/></svg>
+      </div>
+      <h3>Alert history</h3>
+      <p>All relayed alerts are stored locally and timestamped. Full offline log available to responders and NGO coordinators after connectivity is restored.</p>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="divider"></div>
+
+<!-- LIVE DEMO -->
+<div class="section-alt" id="demo">
+<div class="section">
+  <div class="section-header">
+    <div class="section-tag">Live demo</div>
+    <h2>Simulate the mesh network</h2>
+    <p class="lead">Send alerts, watch the live feed, and see device locations on the mesh map — all working in your browser.</p>
+  </div>
+
+  <div class="demo-wrap">
+    <div class="demo-tabs">
+      <div class="demo-tab active" onclick="switchTab('send',this)">📡 Send alert</div>
+      <div class="demo-tab" onclick="switchTab('feed',this)">📋 Live feed</div>
+      <div class="demo-tab" onclick="switchTab('map',this)">🗺 Mesh map</div>
+    </div>
+
+    <!-- SEND TAB -->
+    <div class="demo-panel active" id="tab-send">
+      <div class="send-panel">
+        <div class="field-row">
+          <div>
+            <label>Alert type</label>
+            <select id="alertType">
+              <option value="SOS">🆘 SOS — General emergency</option>
+              <option value="Flood">🌊 Flood — Water emergency</option>
+              <option value="Fire">🔥 Fire — Fire emergency</option>
+              <option value="Medical">🏥 Medical — Medical emergency</option>
+            </select>
+          </div>
+          <div>
+            <label>Priority</label>
+            <select id="alertPriority">
+              <option value="critical">Critical — life threatening</option>
+              <option value="high">High — urgent help needed</option>
+              <option value="medium">Medium — assistance required</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <label>Message</label>
+          <textarea id="alertMsg" placeholder="Describe the emergency clearly. Include number of people, condition, and any access information..."></textarea>
+        </div>
+        <div style="margin-bottom:10px">
+          <label>Location</label>
+          <div class="location-row">
+            <input type="text" id="alertLoc" placeholder="Coordinates or address..."/>
+            <button class="loc-btn" onclick="getLocation()">📍 Use GPS</button>
+          </div>
+        </div>
+        <div class="field-row">
+          <div>
+            <label>Your name (optional)</label>
+            <input type="text" id="alertName" placeholder="e.g. Priya Sharma"/>
+          </div>
+          <div>
+            <label>Contact number (optional)</label>
+            <input type="tel" id="alertPhone" placeholder="e.g. +91 98765 43210"/>
+          </div>
+        </div>
+        <button class="broadcast-btn" id="broadcastBtn" onclick="broadcastAlert()">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 8C1 8 3.5 3 8 3s7 5 7 5-2.5 5-7 5S1 8 1 8z" stroke="white" stroke-width="1.4" fill="none"/><circle cx="8" cy="8" r="2" fill="white"/></svg>
+          Broadcast to mesh
+        </button>
+        <div class="send-status" id="sendStatus"></div>
+      </div>
+    </div>
+
+    <!-- FEED TAB -->
+    <div class="demo-panel" id="tab-feed">
+      <div class="feed-header">
+        <div class="feed-live"><div class="feed-dot"></div>Live mesh feed</div>
+        <div class="feed-count" id="feedCount">Loading...</div>
+      </div>
+      <div class="feed-list" id="feedList"></div>
+    </div>
+
+    <!-- MAP TAB -->
+    <div class="demo-panel" id="tab-map">
+      <div class="map-panel">
+        <div id="map-canvas"></div>
+        <div class="map-legend">
+          <div class="map-legend-item"><div class="map-legend-dot" style="background:#E24B4A"></div> SOS origin</div>
+          <div class="map-legend-item"><div class="map-legend-dot" style="background:#378ADD"></div> Flood</div>
+          <div class="map-legend-item"><div class="map-legend-dot" style="background:#BA7517"></div> Fire</div>
+          <div class="map-legend-item"><div class="map-legend-dot" style="background:#639922"></div> Medical</div>
+          <div class="map-legend-item"><div class="map-legend-dot" style="background:#888780"></div> Relay device</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="divider"></div>
+
+<!-- TRACTION -->
+<div class="section-bg" id="traction">
+<div class="section">
+  <div class="section-header">
+    <div class="section-tag">Traction</div>
+    <h2>Real-world pilot results</h2>
+    <p class="lead">Deployed across three disaster-prone zones in India with measurable outcomes.</p>
+  </div>
+  <div class="traction-grid" id="tractionGrid">
+    <div class="traction-card">
+      <div class="traction-val">3</div>
+      <div class="traction-label">Active field pilots — flood zones in Assam, Maharashtra, and Odisha</div>
+      <div class="prog-bar"><div class="prog-fill" data-w="60"></div></div>
+    </div>
+    <div class="traction-card">
+      <div class="traction-val">1,247</div>
+      <div class="traction-label">Devices enrolled across all pilot areas</div>
+      <div class="prog-bar"><div class="prog-fill" data-w="83"></div></div>
+    </div>
+    <div class="traction-card">
+      <div class="traction-val">94%</div>
+      <div class="traction-label">Alert delivery success rate in field tests (5-hop max)</div>
+      <div class="prog-bar"><div class="prog-fill" data-w="94"></div></div>
+    </div>
+    <div class="traction-card">
+      <div class="traction-val">8.4s</div>
+      <div class="traction-label">Average end-to-end delivery time across a 5-device chain</div>
+      <div class="prog-bar"><div class="prog-fill" data-w="42"></div></div>
+    </div>
+    <div class="traction-card">
+      <div class="traction-val">2 NGOs</div>
+      <div class="traction-label">Disaster relief partners in active integration discussions</div>
+      <div class="prog-bar"><div class="prog-fill" data-w="40"></div></div>
+    </div>
+    <div class="traction-card">
+      <div class="traction-val">NDRF LOI</div>
+      <div class="traction-label">Letter of intent from National Disaster Response Force</div>
+      <div class="prog-bar"><div class="prog-fill" data-w="30"></div></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="divider"></div>
+
+<!-- TECH -->
+<div class="section-alt" id="tech">
+<div class="section">
+  <div class="section-header">
+    <div class="section-tag">Technology</div>
+    <h2>Open protocol, auditable code</h2>
+    <p class="lead">Built on proven standards — nothing proprietary in the critical path.</p>
+  </div>
+  <div class="tech-grid">
+    <div class="tech-card">
+      <h3>Transport layer <span class="tech-tag">BLE 5.0 + Wi-Fi Direct</span></h3>
+      <p>Devices advertise a custom GATT service UUID. BLE handles discovery; Wi-Fi Direct handles bulk transfer for large payloads. Range: ~100m per hop outdoors.</p>
+      <div class="code-block"><span class="kw">SERVICE_UUID</span> = <span class="str">"6E400001-B5A3-F393-E0A9-E50E24DCCA9E"</span><br><span class="cm">// BLE GATT Notification characteristic</span><br><span class="kw">char</span> TX = <span class="str">"6E400003-..."</span></div>
+    </div>
+    <div class="tech-card">
+      <h3>Routing protocol <span class="tech-tag">Epidemic + TTL</span></h3>
+      <p>Each alert has a UUID, TTL (default 8), and a seen-set. Devices forward only if they haven't seen the UUID. Prevents broadcast storms on dense meshes.</p>
+      <div class="code-block"><span class="cm">// Pseudo-code relay logic</span><br><span class="kw">if</span> (ttl &gt; 0 &amp;&amp; !seen.has(uuid)) {<br>  seen.add(uuid)<br>  broadcast(alert, ttl - 1)<br>}</div>
+    </div>
+    <div class="tech-card">
+      <h3>Encryption <span class="tech-tag">Curve25519 + AES-256-GCM</span></h3>
+      <p>Key exchange via X25519 ECDH. Message content encrypted with AES-256-GCM. Relay nodes only see destination public key and encrypted blob — zero knowledge of content.</p>
+      <div class="code-block"><span class="kw">encrypt</span>(msg, recipientPubKey) {<br>  <span class="kw">const</span> shared = x25519(myPriv, recipientPub)<br>  <span class="kw">return</span> aes256gcm.seal(msg, shared)<br>}</div>
+    </div>
+    <div class="tech-card">
+      <h3>Gateway nodes <span class="tech-tag">Raspberry Pi 4 + 4G</span></h3>
+      <p>Low-cost Raspberry Pi 4 units with a USB 4G dongle act as internet bridges. When an alert reaches a gateway, it's POSTed to the emergency dispatch API and forwarded via SMS fallback.</p>
+      <div class="code-block"><span class="cm"># Gateway relay (Python)</span><br>requests.post(<span class="str">"https://api.ndrf.gov.in/alert"</span>,<br>  json=alert, headers={<span class="str">"X-Sig"</span>: sig})</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="divider"></div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div>
+      <div class="footer-logo">
+        <div class="logo-icon" style="width:24px;height:24px;border-radius:6px">
+          <svg viewBox="0 0 18 18" width="14" height="14" fill="none"><circle cx="9" cy="9" r="3" fill="white"/><circle cx="2.5" cy="3" r="1.8" fill="white" opacity="0.65"/><circle cx="15.5" cy="15" r="1.8" fill="white" opacity="0.65"/><line x1="4.2" y1="4.2" x2="6.8" y2="6.8" stroke="white" stroke-width="0.9" opacity="0.5"/><line x1="13.8" y1="13.8" x2="11.2" y2="11.2" stroke="white" stroke-width="0.9" opacity="0.5"/></svg>
+        </div>
+        MeshSignal
+      </div>
+      <p class="footer-desc">Offline emergency alert system using device mesh networking. Built for disaster zones, rural areas, and anywhere infrastructure fails.</p>
+    </div>
+    <div class="footer-links">
+      <a href="#how">How it works</a>
+      <a href="#demo">Live demo</a>
+      <a href="#traction">Traction</a>
+      <a href="#tech">Technology</a>
+      <a href="#" onclick="openModal('protocol')">Open protocol</a>
+      <a href="#" onclick="openModal('contact')">Contact / partner</a>
+    </div>
+  </div>
+  <div class="footer-copy">© 2025 MeshSignal — Open protocol, auditable code. Built for when connectivity fails.</div>
+</footer>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOutside(event)">
+  <div class="modal" id="modal">
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────────
+const SEED_ALERTS = [
+  { type:'SOS', msg:'Person trapped under roof collapse, 3 adults including elderly', lat:23.2137, lng:77.4348, hops:3, mins:4, name:'Rajan K.' },
+  { type:'Flood', msg:'Water rising fast near Bhadbhada bridge, road completely blocked', lat:23.1918, lng:77.4102, hops:5, mins:11, name:'Sanjay M.' },
+  { type:'Medical', msg:'Diabetic patient needs insulin urgently, unconscious', lat:23.2211, lng:77.4445, hops:2, mins:18, name:'Priya S.' },
+  { type:'Fire', msg:'Transformer fire spreading to adjacent building, 2 floors', lat:23.2055, lng:77.4285, hops:4, mins:22, name:'Amit T.' },
+  { type:'SOS', msg:'Family of 5 stranded on rooftop, children present', lat:23.1985, lng:77.4512, hops:6, mins:29, name:'Kavita R.' },
+  { type:'Flood', msg:'Vehicles swept away on Kolar road, multiple people missing', lat:23.2310, lng:77.4180, hops:3, mins:35, name:'Dev P.' },
+  { type:'Medical', msg:'Pregnant woman in labour, hospital unreachable due to flooding', lat:23.1855, lng:77.4390, hops:7, mins:41, name:'Ritu B.' },
+];
+
+let alerts = [...SEED_ALERTS];
+let userAlertCount = 0;
+
+function fmtTime(mins) {
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + ' min ago';
+  return Math.round(mins/60) + ' hr ago';
+}
+
+function badgeClass(type) {
+  return { SOS:'badge-sos', Flood:'badge-flood', Fire:'badge-fire', Medical:'badge-medical' }[type] || 'badge-sos';
+}
+
+function typeEmoji(type) {
+  return { SOS:'🆘', Flood:'🌊', Fire:'🔥', Medical:'🏥' }[type] || '🆘';
+}
+
+// ── FEED ──────────────────────────────────────────────────────────────────────
+function renderFeed() {
+  const list = document.getElementById('feedList');
+  const count = document.getElementById('feedCount');
+  count.textContent = alerts.length + ' alerts in mesh';
+  list.innerHTML = alerts.map((a, i) => `
+    <div class="feed-item${i === 0 && a._new ? ' new' : ''}" onclick="showAlertDetail(${i})">
+      <span class="alert-badge ${badgeClass(a.type)}">${a.type}</span>
+      <div class="feed-content">
+        <div class="feed-title">${a.msg}</div>
+        <div class="feed-meta">
+          <span>📍 ${a.lat.toFixed(4)}°N, ${a.lng.toFixed(4)}°E</span>
+          ${a.name ? '<span>👤 ' + a.name + '</span>' : ''}
+        </div>
+      </div>
+      <div class="feed-right">
+        <span class="hop-tag">${a.hops} hop${a.hops > 1 ? 's' : ''}</span>
+        <span class="feed-time">${fmtTime(a.mins)}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function showAlertDetail(i) {
+  const a = alerts[i];
+  openModal('alert', a);
+}
+
+// ── SEND ──────────────────────────────────────────────────────────────────────
+function getLocation() {
+  const btn = document.querySelector('.loc-btn');
+  btn.textContent = '⏳ Locating...';
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        document.getElementById('alertLoc').value = pos.coords.latitude.toFixed(5) + '°N, ' + pos.coords.longitude.toFixed(5) + '°E';
+        btn.textContent = '✅ GPS locked';
+        setTimeout(() => btn.textContent = '📍 Use GPS', 2500);
+      },
+      () => {
+        document.getElementById('alertLoc').value = '23.21350°N, 77.43400°E (simulated)';
+        btn.textContent = '📍 Use GPS';
+        showToast('GPS unavailable — using simulated coordinates');
+      }
+    );
+  } else {
+    document.getElementById('alertLoc').value = '23.21350°N, 77.43400°E (simulated)';
+    btn.textContent = '📍 Use GPS';
+  }
+}
+
+function broadcastAlert() {
+  const msg = document.getElementById('alertMsg').value.trim();
+  const type = document.getElementById('alertType').value;
+  const loc = document.getElementById('alertLoc').value.trim() || '23.21000°N, 77.43000°E (simulated)';
+  const name = document.getElementById('alertName').value.trim();
+  const btn = document.getElementById('broadcastBtn');
+  const status = document.getElementById('sendStatus');
+
+  if (!msg) { showToast('Please enter an emergency message'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Broadcasting...';
+  status.textContent = '';
+
+  // Simulate mesh relay animation
+  let step = 0;
+  const steps = ['Encoding alert…', 'Signing with device key…', 'Broadcasting via BLE…', 'Relayed to 3 nearby devices…', 'Reaching gateway node…', '✅ Alert delivered to mesh!'];
+  const interval = setInterval(() => {
+    if (step < steps.length) { status.textContent = steps[step++]; }
+    else {
+      clearInterval(interval);
+      const hops = Math.floor(Math.random() * 5) + 1;
+      const latParts = loc.match(/([\d.]+)°N/);
+      const lngParts = loc.match(/([\d.]+)°E/);
+      const lat = latParts ? parseFloat(latParts[1]) : 23.21 + (Math.random()-0.5)*0.04;
+      const lng = lngParts ? parseFloat(lngParts[1]) : 77.43 + (Math.random()-0.5)*0.04;
+
+      const newAlert = { type, msg, lat, lng, hops, mins: 0, name: name || null, _new: true };
+      alerts.unshift(newAlert);
+      userAlertCount++;
+      renderFeed();
+      renderMap();
+
+      btn.disabled = false;
+      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 8C1 8 3.5 3 8 3s7 5 7 5-2.5 5-7 5S1 8 1 8z" stroke="white" stroke-width="1.4" fill="none"/><circle cx="8" cy="8" r="2" fill="white"/></svg> Broadcast to mesh';
+      status.className = 'send-status success';
+      status.textContent = `Alert broadcast! Reached ${hops} devices via ${hops} hop${hops>1?'s':''}. Tap "Live feed" to see it.`;
+      showToast('🆘 Alert broadcast to mesh network');
+
+      document.getElementById('alertMsg').value = '';
+      document.getElementById('alertName').value = '';
+      document.getElementById('alertPhone').value = '';
+      document.getElementById('alertLoc').value = '';
+      setTimeout(() => { status.textContent = ''; status.className = 'send-status'; }, 8000);
+    }
+  }, 400);
+}
+
+// ── MAP ───────────────────────────────────────────────────────────────────────
+const RELAY_DEVICES = [
+  { lat:23.205, lng:77.425 }, { lat:23.215, lng:77.440 },
+  { lat:23.200, lng:77.450 }, { lat:23.220, lng:77.420 },
+  { lat:23.195, lng:77.435 }, { lat:23.225, lng:77.455 },
+  { lat:23.210, lng:77.415 }, { lat:23.230, lng:77.430 },
+];
+
+function latLngToXY(lat, lng, w, h, bounds) {
+  const x = (lng - bounds.minLng) / (bounds.maxLng - bounds.minLng) * (w - 40) + 20;
+  const y = h - (lat - bounds.minLat) / (bounds.maxLat - bounds.minLat) * (h - 40) - 20;
+  return [x, y];
+}
+
+function renderMap() {
+  const canvas = document.getElementById('map-canvas');
+  const W = canvas.offsetWidth || 600;
+  const H = 380;
+
+  const allPts = [...alerts.map(a => ({lat:a.lat, lng:a.lng})), ...RELAY_DEVICES];
+  const lats = allPts.map(p => p.lat);
+  const lngs = allPts.map(p => p.lng);
+  const bounds = {
+    minLat: Math.min(...lats) - 0.01, maxLat: Math.max(...lats) + 0.01,
+    minLng: Math.min(...lngs) - 0.01, maxLng: Math.max(...lngs) + 0.01
+  };
+
+  const typeColors = { SOS:'#E24B4A', Flood:'#378ADD', Fire:'#BA7517', Medical:'#639922' };
+
+  canvas.innerHTML = '';
+
+  // Grid lines
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('width', W); svg.setAttribute('height', H);
+  svg.style.position = 'absolute'; svg.style.top = '0'; svg.style.left = '0';
+
+  // Light grid
+  for (let i = 0; i <= 5; i++) {
+    const x = 20 + (W-40)*i/5;
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',x); line.setAttribute('y1',0); line.setAttribute('x2',x); line.setAttribute('y2',H);
+    line.setAttribute('stroke','rgba(128,128,120,0.12)'); line.setAttribute('stroke-width','0.5');
+    svg.appendChild(line);
+    const line2 = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line2.setAttribute('x1',0); line2.setAttribute('y1',20+(H-40)*i/5); line2.setAttribute('x2',W); line2.setAttribute('y2',20+(H-40)*i/5);
+    line2.setAttribute('stroke','rgba(128,128,120,0.12)'); line2.setAttribute('stroke-width','0.5');
+    svg.appendChild(line2);
+  }
+
+  // Relay device connections (light lines between nearby nodes)
+  const allCoords = [
+    ...alerts.map((a,i) => ({ ...latLngToXY(a.lat, a.lng, W, H, bounds), type:'alert', idx:i })),
+    ...RELAY_DEVICES.map((d,i) => ({ ...latLngToXY(d.lat, d.lng, W, H, bounds), type:'relay', idx:i }))
+  ].map(c => [c[0], c[1], c.type, c.idx]);
+
+  const allXY = [
+    ...alerts.map(a => latLngToXY(a.lat, a.lng, W, H, bounds)),
+    ...RELAY_DEVICES.map(d => latLngToXY(d.lat, d.lng, W, H, bounds))
+  ];
+
+  allXY.forEach(([x1,y1], i) => {
+    allXY.forEach(([x2,y2], j) => {
+      if (j <= i) return;
+      const dist = Math.hypot(x2-x1, y2-y1);
+      if (dist < 100) {
+        const l = document.createElementNS('http://www.w3.org/2000/svg','line');
+        l.setAttribute('x1',x1); l.setAttribute('y1',y1); l.setAttribute('x2',x2); l.setAttribute('y2',y2);
+        l.setAttribute('stroke','rgba(128,128,120,0.18)'); l.setAttribute('stroke-width','0.8');
+        l.setAttribute('stroke-dasharray','3,3');
+        svg.appendChild(l);
+      }
+    });
+  });
+
+  canvas.appendChild(svg);
+
+  // Relay device dots
+  RELAY_DEVICES.forEach(d => {
+    const [x,y] = latLngToXY(d.lat, d.lng, W, H, bounds);
+    const el = document.createElement('div');
+    el.className = 'map-node';
+    el.style.left = x+'px'; el.style.top = y+'px';
+    el.innerHTML = `<div class="map-node-circle" style="background:#888780;width:14px;height:14px"></div>`;
+    el.title = 'Relay device';
+    canvas.appendChild(el);
+  });
+
+  // Alert nodes
+  alerts.forEach((a, i) => {
+    const [x,y] = latLngToXY(a.lat, a.lng, W, H, bounds);
+    const color = typeColors[a.type] || '#E24B4A';
+    const el = document.createElement('div');
+    el.className = 'map-node';
+    el.style.left = x+'px'; el.style.top = y+'px';
+    el.style.zIndex = 5;
+
+    const circle = document.createElement('div');
+    circle.className = 'map-node-circle';
+    circle.style.background = color;
+    circle.style.width = '20px'; circle.style.height = '20px';
+    circle.style.fontSize = '9px';
+    circle.textContent = a.type[0];
+    el.appendChild(circle);
+
+    // Range ring
+    const ring = document.createElement('div');
+    ring.className = 'range-ring';
+    ring.style.left = x+'px'; ring.style.top = y+'px';
+    ring.style.borderColor = color;
+    ring.style.animationDelay = (i * 0.4) + 's';
+    canvas.appendChild(ring);
+
+    let popup = null;
+    el.onmouseenter = () => {
+      popup = document.createElement('div');
+      popup.className = 'map-popup';
+      let px = x + 14, py = y - 10;
+      if (px + 200 > W) px = x - 210;
+      popup.style.left = px + 'px'; popup.style.top = py + 'px';
+      popup.innerHTML = `<div class="pop-title">${typeEmoji(a.type)} ${a.type} Alert</div><div class="pop-meta">${a.msg.substring(0,60)}${a.msg.length>60?'…':''}</div><div class="pop-meta" style="margin-top:4px">📍 ${a.lat.toFixed(4)}°N, ${a.lng.toFixed(4)}°E &nbsp;|&nbsp; ${a.hops} hops</div>`;
+      canvas.appendChild(popup);
+    };
+    el.onmouseleave = () => { if (popup) { popup.remove(); popup = null; } };
+    el.onclick = () => showAlertDetail(i);
+    canvas.appendChild(el);
+  });
+}
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+function switchTab(name, el) {
+  document.querySelectorAll('.demo-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.demo-panel').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'map') { setTimeout(renderMap, 50); }
+  if (name === 'feed') { renderFeed(); }
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────────
+const MODAL_CONTENT = {
+  protocol: `<h2>Open protocol</h2>
+    <p>MeshSignal uses an <strong>open, documented protocol</strong> so any developer or NGO can build compatible apps or gateway nodes.</p>
+    <p>The packet format is JSON-over-BLE with a fixed header: <strong>UUID (16 bytes) + TTL (1 byte) + type (1 byte) + payload (AES-256-GCM encrypted, variable)</strong>.</p>
+    <p>Source code, protocol spec, and gateway node setup guide available on request. We welcome third-party implementations and security audits.</p>`,
+  contact: `<h2>Partner with us</h2>
+    <p>We're looking for <strong>NGO partners, state disaster management authorities, and device manufacturers</strong> to expand MeshSignal coverage.</p>
+    <p>Interested in running a pilot, integrating our SDK, or deploying gateway nodes? Get in touch:</p>
+    <p><strong>Email:</strong> hello@meshsignal.in<br><strong>Phone:</strong> +91 98765 00001</p>`,
+};
+
+function openModal(type, data) {
+  const content = document.getElementById('modalContent');
+  if (type === 'alert' && data) {
+    const typeColors = { SOS:'#E24B4A', Flood:'#378ADD', Fire:'#BA7517', Medical:'#639922' };
+    content.innerHTML = `
+      <h2>${typeEmoji(data.type)} ${data.type} Alert</h2>
+      <p><strong>Message:</strong> ${data.msg}</p>
+      <p><strong>Location:</strong> ${data.lat.toFixed(5)}°N, ${data.lng.toFixed(5)}°E</p>
+      ${data.name ? '<p><strong>Reported by:</strong> ' + data.name + '</p>' : ''}
+      <p><strong>Hops traversed:</strong> ${data.hops}</p>
+      <p><strong>Time:</strong> ${fmtTime(data.mins)}</p>
+      <p style="margin-top:1rem;font-size:12px;color:var(--text3)">This alert has been cryptographically signed and verified. All relay devices have seen only the encrypted payload.</p>`;
+  } else if (MODAL_CONTENT[type]) {
+    content.innerHTML = MODAL_CONTENT[type];
+  }
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+function closeModalOutside(e) { if (e.target === document.getElementById('modalOverlay')) closeModal(); }
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── NAV ───────────────────────────────────────────────────────────────────────
+function toggleNav() { document.getElementById('navLinks').classList.toggle('open'); }
+
+// ── STAT COUNTER ANIMATION ────────────────────────────────────────────────────
+function animateStats() {
+  const targets = [{ id:'sv1', end:2847, suffix:'' }, { id:'sv2', end:1247, suffix:'' }, { id:'sv3', end:94, suffix:'%' }, { id:'sv4', end:8.4, suffix:'s', decimal:true }];
+  targets.forEach(({ id, end, suffix, decimal }) => {
+    const el = document.getElementById(id);
+    const start = Date.now();
+    const dur = 1200;
+    const tick = () => {
+      const p = Math.min((Date.now()-start)/dur, 1);
+      const ease = 1 - Math.pow(1-p, 3);
+      const val = ease * end;
+      el.textContent = (decimal ? val.toFixed(1) : Math.round(val)) + suffix;
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
+// ── PROGRESS BARS ─────────────────────────────────────────────────────────────
+function animateProgressBars() {
+  document.querySelectorAll('.prog-fill').forEach(el => {
+    el.style.width = el.dataset.w + '%';
+  });
+}
+
+// ── INTERSECTION OBSERVER ─────────────────────────────────────────────────────
+const observed = new Set();
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting && !observed.has(e.target.id)) {
+      observed.add(e.target.id);
+      if (e.target.id === 'statsSection') animateStats();
+      if (e.target.id === 'tractionGrid') setTimeout(animateProgressBars, 200);
+    }
+  });
+}, { threshold: 0.3 });
+
+// ── MESH ANIMATION ────────────────────────────────────────────────────────────
+function animateMesh() {
+  const path = ['n0','n1','n3','n4','n6'];
+  const edgeMap = { 'n0-n1':'e1', 'n0-n2':'e2', 'n1-n3':'e3', 'n2-n3':'e4', 'n3-n4':'e5', 'n3-n5':'e6', 'n4-n6':'e7', 'n5-n6':'e8' };
+  const nodePositions = { n0:[80,95], n1:[200,55], n2:[200,135], n3:[300,95], n4:[400,55], n5:[400,135], n6:[520,95] };
+
+  let step = 0;
+  const packet = document.getElementById('packet');
+
+  function nextStep() {
+    if (step >= path.length - 1) {
+      // Reset
+      path.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.classList.remove('relay'); if (id !== 'n0') el.classList.remove('active'); }
+      });
+      Object.values(edgeMap).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('active');
+      });
+      packet.setAttribute('opacity','0');
+      step = 0;
+      setTimeout(nextStep, 800);
+      return;
+    }
+
+    const from = path[step];
+    const to = path[step + 1];
+    const key = from + '-' + to;
+    const edgeId = edgeMap[key];
+    if (edgeId) {
+      const edge = document.getElementById(edgeId);
+      if (edge) edge.classList.add('active');
+    }
+
+    const [x1,y1] = nodePositions[from];
+    const [x2,y2] = nodePositions[to];
+    packet.setAttribute('opacity','1');
+    packet.setAttribute('cx', x1); packet.setAttribute('cy', y1);
+
+    const dur = 600;
+    const start = Date.now();
+    const anim = () => {
+      const p = Math.min((Date.now()-start)/dur, 1);
+      packet.setAttribute('cx', x1 + (x2-x1)*p);
+      packet.setAttribute('cy', y1 + (y2-y1)*p);
+      if (p < 1) requestAnimationFrame(anim);
+      else {
+        const toNode = document.getElementById(to);
+        if (toNode) { toNode.classList.add('relay'); }
+        if (to === 'n6') { toNode.classList.remove('relay'); toNode.classList.add('active'); packet.setAttribute('opacity','0'); setTimeout(nextStep, 1200); }
+        else { step++; setTimeout(nextStep, 200); }
+      }
+    };
+    requestAnimationFrame(anim);
+  }
+
+  setTimeout(nextStep, 1000);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  renderFeed();
+  animateMesh();
+
+  const statsEl = document.getElementById('statsSection');
+  const tractionEl = document.getElementById('tractionGrid');
+  if (statsEl) observer.observe(statsEl);
+  if (tractionEl) observer.observe(tractionEl);
+
+  // Simulate new alerts trickling in
+  let simulatedMins = 0;
+  setInterval(() => {
+    if (Math.random() > 0.65) {
+      const types = ['SOS','Flood','Fire','Medical'];
+      const msgs = [
+        'Family stranded, need evacuation',
+        'Road submerged, vehicles trapped',
+        'Building structure unstable',
+        'Child with high fever, need doctor',
+        'Power line down, risk of electrocution',
+        'Landslide blocking village access',
+      ];
+      const names = ['Ramesh K.','Sunita P.','Arun V.','Meena S.','Vikram D.'];
+      alerts.unshift({
+        type: types[Math.floor(Math.random()*types.length)],
+        msg: msgs[Math.floor(Math.random()*msgs.length)],
+        lat: 23.18 + Math.random()*0.06,
+        lng: 77.41 + Math.random()*0.06,
+        hops: Math.floor(Math.random()*7)+1,
+        mins: 0,
+        name: names[Math.floor(Math.random()*names.length)],
+        _new: true,
+      });
+      if (alerts.length > 40) alerts.pop();
+      if (document.getElementById('tab-feed').classList.contains('active')) renderFeed();
+    }
+    // Age alerts
+    alerts.forEach(a => { if (a.mins < 300) a.mins += 1; });
+  }, 8000);
+});
+</script>
+</body>
+</html>
